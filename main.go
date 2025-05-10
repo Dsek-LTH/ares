@@ -11,7 +11,7 @@ import (
 // go:embed components/*
 func main() {
 	router := http.NewServeMux()
-	router.Handle("/", templ.Handler(components.Index("test")))
+	router.Handle("/{$}", templ.Handler(components.Index("test")))
 	router.Handle("/admin", templ.Handler(components.Admin()))
 	router.Handle("/sign-up", templ.Handler(components.Signup()))
 	router.Handle("/leaderboard", templ.Handler(components.Leaderboard()))
