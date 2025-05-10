@@ -30,7 +30,10 @@ type Hunt struct {
 	Target   User `gorm:"foreignKey:TargetId;references:StilId"`
 }
 
-// go:embed components/*
+func signUpHandler(w http.ResponseWriter, r *http.Request) {
+	components.Index("aaa").Render(r.Context(), w)
+}
+
 func main() {
 	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
@@ -44,7 +47,7 @@ func main() {
 
 	// Routes
 	router := http.NewServeMux()
-	router.Handle("/{$}", templ.Handler(components.Index("test")))
+	router.Handle("/{$}", signUpHandler)
 	router.Handle("/admin", templ.Handler(components.Admin()))
 	router.Handle("/sign-up", templ.Handler(components.Signup()))
 	router.Handle("/leaderboard", templ.Handler(components.Leaderboard()))
