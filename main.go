@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
-	"killer-game/components"
-	"net/http"
-
+	"github.com/Dsek-LTH/ares/components"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
@@ -20,6 +20,8 @@ import (
 
 var (
 	sessionStore *sessions.CookieStore
+	verifier     *oidc.IDTokenVerifier
+	oauth2Config *oauth2.Config
 )
 
 type User struct {
@@ -42,20 +44,13 @@ type Hunt struct {
 	Target   User `gorm:"foreignKey:TargetId;references:StilId"`
 }
 
-type indexHandler struct {
-	username string
+type signUpData struct {
+	Name   string `json:"name"`
+	StilId string `json:"stil-id"`
 }
 
-type signUpHandler struct {
-	createdNewAccount bool
-	name              string
-	stilId            string
-}
-
-type leaderboardHandler struct {
-}
-
-type adminHandler struct {
+type Handler struct {
+	Database *gorm.DB
 }
 
 func authMiddleware(next http.Handler) http.Handler {
@@ -64,7 +59,6 @@ func authMiddleware(next http.Handler) http.Handler {
 		_, ok := session.Values["username"]
 
 		if !ok {
-			// Not logged in
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
@@ -73,27 +67,107 @@ func authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func IndexHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := sessionStore.Get(r, "auth-session")
 	username, ok := session.Values["username"].(string)
 	log.Println(session.Values)
 	if ok {
-		components.Index(username).Render(r.Context(), w)
+		components.Home(username).Render(r.Context(), w)
 	} else {
-		components.Index("Not Logged In").Render(r.Context(), w)
+		components.Index().Render(r.Context(), w)
 	}
 }
 
-func (sh signUpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	components.Signup().Render(r.Context(), w)
+func (s *Handler) SignUpHandler(w http.ResponseWriter, r *http.Request) {
+	var name string
+	var stilId string
+	var createdNewAccount bool
+	if r.Method == http.MethodPost {
+		var data signUpData
+		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		// FIXME: This can error, plz fix (try Create().Error to see if error)
+		s.Database.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
+		name = data.Name
+		stilId = data.StilId
+		createdNewAccount = true
+
+	} else {
+		var user User
+		s.Database.Last(&user)
+		name = user.Name
+		stilId = user.StilId
+	}
+	// FIXME: This can also error, fix error handling here
+	components.Signup(name, stilId, createdNewAccount).Render(r.Context(), w)
 }
 
-func (ah adminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) AdminHandler(w http.ResponseWriter, r *http.Request) {
 	components.Admin().Render(r.Context(), w)
 }
 
-func (lh leaderboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	components.Leaderboard().Render(r.Context(), w)
+}
+
+func (s *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, oauth2Config.AuthCodeURL("some-random-state"), http.StatusFound)
+}
+
+func (s *Handler) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	session, _ := sessionStore.Get(r, "auth-session")
+	session.Options.MaxAge = -1
+	session.Save(r, w)
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
+func (s *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if r.URL.Query().Get("state") != "some-random-state" {
+		http.Error(w, "State mismatch", http.StatusBadRequest)
+		return
+	}
+
+	oauth2Token, err := oauth2Config.Exchange(ctx, r.URL.Query().Get("code"))
+	if err != nil {
+		http.Error(w, "Failed to exchange token", http.StatusInternalServerError)
+		return
+	}
+
+	// Extract the ID Token from OAuth2 token
+	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
+	if !ok {
+		http.Error(w, "No id_token field in oauth2 token", http.StatusInternalServerError)
+		return
+	}
+
+	// Verify ID Token
+	idToken, err := verifier.Verify(ctx, rawIDToken)
+	if err != nil {
+		http.Error(w, "Failed to verify ID token", http.StatusInternalServerError)
+		return
+	}
+
+	// Extract claims
+	var claims map[string]interface{}
+	if err := idToken.Claims(&claims); err != nil {
+		http.Error(w, "Failed to parse claims", http.StatusInternalServerError)
+		return
+	}
+
+	// Save to session
+	session, _ := sessionStore.Get(r, "auth-session")
+	log.Println(claims["preferred_username"])
+	session.Values["username"] = claims["preferred_username"]
+	err = session.Save(r, w)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Session store error: %s", err.Error()), http.StatusInternalServerError)
+	}
+
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 func main() {
@@ -116,10 +190,10 @@ func main() {
 		log.Fatalf("Failed to discover provider: %v", err)
 	}
 
-	verifier := provider.Verifier(&oidc.Config{
+	verifier = provider.Verifier(&oidc.Config{
 		ClientID: clientID,
 	})
-	oauth2Config := &oauth2.Config{
+	oauth2Config = &oauth2.Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURL,
@@ -137,71 +211,19 @@ func main() {
 	db.AutoMigrate(&Admin{})
 	db.AutoMigrate(&Hunt{})
 
-	// Routes
+	handler := &Handler{
+		Database: db,
+	}
+
 	router := http.NewServeMux()
-	router.HandleFunc("/{$}", IndexHandler)
-	router.Handle("/admin", adminHandler{})
-	router.Handle("GET /sign-up", adminHandler{})
-	router.Handle("PUT /sign-up", signUpHandler{})
-	router.Handle("/leaderboard", leaderboardHandler{})
+	router.HandleFunc("/{$}", handler.IndexHandler)
+	router.Handle("/admin", authMiddleware(http.HandlerFunc(handler.AdminHandler)))
+	router.HandleFunc("/sign-up", handler.SignUpHandler)
+	router.HandleFunc("/leaderboard", handler.LeaderboardHandler)
 
-	router.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, oauth2Config.AuthCodeURL("some-random-state"), http.StatusFound)
-	})
-
-	router.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
-		session, _ := sessionStore.Get(r, "auth-session")
-		session.Options.MaxAge = -1
-		session.Save(r, w)
-		http.Redirect(w, r, "/", http.StatusFound)
-	})
-
-	router.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		if r.URL.Query().Get("state") != "some-random-state" {
-			http.Error(w, "State mismatch", http.StatusBadRequest)
-			return
-		}
-
-		oauth2Token, err := oauth2Config.Exchange(ctx, r.URL.Query().Get("code"))
-		if err != nil {
-			http.Error(w, "Failed to exchange token", http.StatusInternalServerError)
-			return
-		}
-
-		// Extract the ID Token from OAuth2 token
-		rawIDToken, ok := oauth2Token.Extra("id_token").(string)
-		if !ok {
-			http.Error(w, "No id_token field in oauth2 token", http.StatusInternalServerError)
-			return
-		}
-
-		// Verify ID Token
-		idToken, err := verifier.Verify(ctx, rawIDToken)
-		if err != nil {
-			http.Error(w, "Failed to verify ID token", http.StatusInternalServerError)
-			return
-		}
-
-		// Extract claims
-		var claims map[string]interface{}
-		if err := idToken.Claims(&claims); err != nil {
-			http.Error(w, "Failed to parse claims", http.StatusInternalServerError)
-			return
-		}
-
-		// Save to session
-		session, _ := sessionStore.Get(r, "auth-session")
-		log.Println(claims["preferred_username"])
-		session.Values["username"] = claims["preferred_username"]
-		err = session.Save(r, w)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Session store error: %s", err.Error()), http.StatusInternalServerError)
-		}
-
-		http.Redirect(w, r, "/", http.StatusFound)
-	})
+	router.HandleFunc("/login", handler.LoginHandler)
+	router.HandleFunc("/logout", handler.LogoutHandler)
+	router.HandleFunc("/callback", handler.CallbackHandler)
 
 	server := &http.Server{
 		Addr:    ":8080",
