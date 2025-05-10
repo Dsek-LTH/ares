@@ -1,7 +1,14 @@
 package components
 
-templ Index(name string) {
+templ Index() {
+	<h1>Welcome to Ares!</h1>
+	<a href="/login">Login</a>
+}
+
+templ Home(name string) {
 	<h1>Hello, { name }</h1>
+	<a href="/admin">Admin Page</a>
+	<a href="/logout">Log out</a>
 }
 
 templ Admin() {
@@ -11,8 +18,8 @@ templ Admin() {
 templ Signup(name string, stilId string, createdNewAccount bool) {
 	<h1>Sign up</h1>
 	<div>
-		<p> Name: { name } </p>
-		<p> Stil-id: { stilId } </p>
+		<p>Name: { name } </p>
+		<p>Stil-id: { stilId } </p>
 		if createdNewAccount {
 			<p>Successfully completed user creation progress</p>
 		}
