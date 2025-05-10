@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"github.com/a-h/templ"
+	// "github.com/a-h/templ"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"killer-game/components"
@@ -31,10 +31,13 @@ type Hunt struct {
 }
 
 type indexHandler struct {
-	Username string
+	username string
 }
 
 type signUpHandler struct {
+	createdNewAccount bool
+	name              string
+	stilId            string
 }
 
 type leaderboardHandler struct {
@@ -43,24 +46,9 @@ type leaderboardHandler struct {
 type adminHandler struct {
 }
 
-func newIndexHandler() indexHandler {
-	return indexHandler{"<Username goes here>"}
-}
-
-func newSignUpHandler() signUpHandler {
-	return signUpHandler{}
-}
-
-func newLeaderboardHandler() signUpHandler {
-	return signUpHandler{}
-}
-
-func newAdminHandler() signUpHandler {
-	return signUpHandler{}
-}
-
 func (ih indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	components.Index(ih.Username).Render(r.Context(), w)
+	ih.username = "aaa"
+	components.Index(ih.username).Render(r.Context(), w)
 }
 
 func (sh signUpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -88,10 +76,11 @@ func main() {
 
 	// Routes
 	router := http.NewServeMux()
-	router.Handle("/{$}", newIndexHandler())
-	router.Handle("/admin", newAdminHandler())
-	router.Handle("/sign-up", newSignUpHandler())
-	router.Handle("/leaderboard", newLeaderboardHandler())
+	router.Handle("/{$}", indexHandler{})
+	router.Handle("/admin", adminHandler{})
+	router.Handle("GET /sign-up", adminHandler{})
+	router.Handle("PUT /sign-up", signUpHandler{})
+	router.Handle("/leaderboard", leaderboardHandler{})
 
 	server := &http.Server{
 		Addr:    ":8080",
