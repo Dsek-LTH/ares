@@ -1,17 +1,51 @@
 package main
 
 import (
+	"database/sql"
 	"embed"
 	"fmt"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 	"html/template"
 	"net/http"
 )
+
+type User struct {
+	StilId   string `gorm:"primaryKey"`
+	ImageUrl string `gorm:"not null"`
+	Name     string `gorm:"not null"`
+}
+
+type Admin struct {
+	UserId string `gorm:"primaryKey"`
+	User   User   `gorm:"foreignKey:UserId;references:StilId"`
+}
+
+type Hunt struct {
+	HunterId string `gorm:"primaryKey"`
+	TargetId string `gorm:"primaryKey"`
+	VideoUrl *string
+	KilledAt sql.NullTime
+	Hunter   User `gorm:"foreignKey:HunterId;references:StilId"`
+	Target   User `gorm:"foreignKey:TargetId;references:StilId"`
+}
 
 //go:embed views/*
 var views embed.FS
 var t = template.Must(template.ParseFS(views, "views/*"))
 
 func main() {
+	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect database")
+	}
+
+	// Migrate the schema
+	_ = db.AutoMigrate(&User{})
+	_ = db.AutoMigrate(&Admin{})
+	_ = db.AutoMigrate(&Hunt{})
+
+	// Routes
 	router := http.NewServeMux()
 	router.HandleFunc("GET /{$}", index)
 	router.HandleFunc("GET /admin", admin)
