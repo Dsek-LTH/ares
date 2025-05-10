@@ -1,22 +1,20 @@
 package main
 
 import (
-	"embed"
 	"fmt"
-	"html/template"
+	"killer-game/components"
 	"net/http"
+
+	"github.com/a-h/templ"
 )
 
-//go:embed views/*
-var views embed.FS
-var t = template.Must(template.ParseFS(views, "views/*"))
-
+// go:embed components/*
 func main() {
 	router := http.NewServeMux()
-	router.HandleFunc("/index", index)
-	router.HandleFunc("/admin", admin)
-	router.HandleFunc("/sign-up", signup)
-	router.HandleFunc("/leaderboard", leaderboard)
+	router.Handle("/", templ.Handler(components.Index("test")))
+	router.Handle("/admin", templ.Handler(components.Admin()))
+	router.Handle("/sign-up", templ.Handler(components.Signup()))
+	router.Handle("/leaderboard", templ.Handler(components.Leaderboard()))
 
 	server := &http.Server{
 		Addr:    ":8080",
@@ -25,30 +23,4 @@ func main() {
 
 	fmt.Println("Server is running at localhost:8080")
 	_ = server.ListenAndServe()
-}
-
-func index(w http.ResponseWriter, r *http.Request) {
-	if err := t.ExecuteTemplate(w, "index.html", nil); err != nil {
-		http.Error(w, "Something went wrong", http.StatusInternalServerError)
-	}
-	if 0 == 1 {
-		if err := t.ExecuteTemplate(w, "userpage.html", nil); err != nil {
-			http.Error(w, "Something went wrong", http.StatusInternalServerError)
-		}
-	}
-}
-func admin(w http.ResponseWriter, r *http.Request) {
-	if err := t.ExecuteTemplate(w, "admin.html", nil); err != nil {
-		http.Error(w, "Something went wrong", http.StatusInternalServerError)
-	}
-}
-func signup(w http.ResponseWriter, r *http.Request) {
-	if err := t.ExecuteTemplate(w, "signup.html", nil); err != nil {
-		http.Error(w, "Something went wrong", http.StatusInternalServerError)
-	}
-}
-func leaderboard(w http.ResponseWriter, r *http.Request) {
-	if err := t.ExecuteTemplate(w, "leaderboard.html", nil); err != nil {
-		http.Error(w, "Something went wrong", http.StatusInternalServerError)
-	}
 }
