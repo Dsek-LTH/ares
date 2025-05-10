@@ -79,9 +79,6 @@ func (s *Handler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) SignUpHandler(w http.ResponseWriter, r *http.Request) {
-	var name string
-	var stilId string
-	var createdNewAccount bool
 	var data signUpData
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
@@ -89,12 +86,10 @@ func (s *Handler) SignUpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// FIXME: This can error, plz fix (try Create().Error to see if error)
 	s.Database.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
-	name = data.Name
-	stilId = data.StilId
-	createdNewAccount = true
+	components.Signup(data.Name, data.StilId, true).Render(r.Context(), w)
 }
 
-func (s *Server) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
 	var user User
 	s.Database.Last(&user)
 	name := user.Name
@@ -151,7 +146,7 @@ func (s *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract claims
-	var claims map[string]interface{}
+	var claims map[string]any
 	if err := idToken.Claims(&claims); err != nil {
 		http.Error(w, "Failed to parse claims", http.StatusInternalServerError)
 		return
