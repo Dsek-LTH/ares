@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +9,7 @@ import (
 	"os"
 
 	"github.com/Dsek-LTH/ares/components"
+	"github.com/Dsek-LTH/ares/db"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
@@ -23,31 +23,6 @@ var (
 	verifier     *oidc.IDTokenVerifier
 	oauth2Config *oauth2.Config
 )
-
-type User struct {
-	StilId   string `gorm:"primaryKey"`
-	ImageUrl string `gorm:"not null"`
-	Name     string `gorm:"not null"`
-}
-
-type Admin struct {
-	UserId string `gorm:"primaryKey"`
-	User   User   `gorm:"foreignKey:UserId;references:StilId"`
-}
-
-type Hunt struct {
-	HunterId string `gorm:"primaryKey"`
-	TargetId string `gorm:"primaryKey"`
-	VideoUrl *string
-	KilledAt sql.NullTime
-	Hunter   User `gorm:"foreignKey:HunterId;references:StilId"`
-	Target   User `gorm:"foreignKey:TargetId;references:StilId"`
-}
-
-type signUpData struct {
-	Name   string `json:"name"`
-	StilId string `json:"stil-id"`
-}
 
 type Handler struct {
 	Database *gorm.DB
@@ -83,18 +58,18 @@ func (s *Handler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) SignUpHandler(w http.ResponseWriter, r *http.Request) {
-	var data signUpData
+	var data db.SignUpData
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 	// FIXME: This can error, plz fix (try Create().Error to see if error)
-	s.Database.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
+	s.Database.Create(db.User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
 	components.Signup(data.Name, data.StilId, true).Render(r.Context(), w)
 }
 
 func (s *Handler) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
-	var user User
+	var user db.User
 	s.Database.Last(&user)
 	name := user.Name
 	stilId := user.StilId
@@ -200,18 +175,18 @@ func main() {
 		Scopes:       []string{oidc.ScopeOpenID, "profile"},
 	}
 
-	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	db_con, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect database")
 	}
 
 	// Migrate the schema
-	db.AutoMigrate(&User{})
-	db.AutoMigrate(&Admin{})
-	db.AutoMigrate(&Hunt{})
+	db_con.AutoMigrate(&db.User{})
+	db_con.AutoMigrate(&db.Admin{})
+	db_con.AutoMigrate(&db.Hunt{})
 
 	handler := &Handler{
-		Database: db,
+		Database: db_con,
 	}
 
 	router := http.NewServeMux()
