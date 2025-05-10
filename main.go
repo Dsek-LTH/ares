@@ -2,11 +2,12 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	// "github.com/a-h/templ"
+	"github.com/Dsek-LTH/ares/components"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"killer-game/components"
 	"net/http"
 )
 
@@ -30,20 +31,29 @@ type Hunt struct {
 	Target   User `gorm:"foreignKey:TargetId;references:StilId"`
 }
 
+type signUpData struct {
+	Name   string `json:"name"`
+	StilId string `json:"stil-id"`
+}
+
 type indexHandler struct {
+	db       *gorm.DB
 	username string
 }
 
 type signUpHandler struct {
+	db                *gorm.DB
 	createdNewAccount bool
 	name              string
 	stilId            string
 }
 
 type leaderboardHandler struct {
+	db *gorm.DB
 }
 
 type adminHandler struct {
+	db *gorm.DB
 }
 
 func (ih indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +62,26 @@ func (ih indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (sh signUpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	components.Signup().Render(r.Context(), w)
+	if r.Method == http.MethodPost {
+		var data signUpData
+		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		// FIXME: This can error, plz fix (try Create().Error to see if error)
+		sh.db.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
+		sh.name = data.Name
+		sh.stilId = data.StilId
+		sh.createdNewAccount = true
+
+	} else {
+		var user User
+		sh.db.Last(&user)
+		sh.name = user.Name
+		sh.stilId = user.StilId
+	}
+	// FIXME: This can also error, fix error handling here
+	components.Signup(sh.name, sh.stilId, sh.createdNewAccount).Render(r.Context(), w)
 }
 
 func (ah adminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -76,11 +105,10 @@ func main() {
 
 	// Routes
 	router := http.NewServeMux()
-	router.Handle("/{$}", indexHandler{})
-	router.Handle("/admin", adminHandler{})
-	router.Handle("GET /sign-up", adminHandler{})
-	router.Handle("PUT /sign-up", signUpHandler{})
-	router.Handle("/leaderboard", leaderboardHandler{})
+	router.Handle("/{$}", indexHandler{db: db})
+	router.Handle("/admin", adminHandler{db})
+	router.Handle("/sign-up", signUpHandler{db: db})
+	router.Handle("/leaderboard", leaderboardHandler{db})
 
 	server := &http.Server{
 		Addr:    ":8080",

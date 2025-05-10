@@ -1,4 +1,4 @@
-module killer-game
+module github.com/Dsek-LTH/ares
 
 go 1.24.3
 

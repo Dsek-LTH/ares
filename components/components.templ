@@ -8,8 +8,15 @@ templ Admin() {
 	<h1>Admin</h1>
 }
 
-templ Signup() {
+templ Signup(name, stilId string, createdNewAccount bool) {
 	<h1>Sign up</h1>
+	<div>
+		<p> Name: { name } </p>
+		<p> Stil-id: { stilId } </p>
+		if createdNewAccount {
+			<p>Successfully completed user creation progress</p>
+		}
+	</div>
 }
 
 templ Leaderboard() {
