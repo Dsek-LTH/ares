@@ -2,11 +2,11 @@ package main
 
 import (
 	"database/sql"
-	"embed"
 	"fmt"
+	"github.com/a-h/templ"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"html/template"
+	"killer-game/components"
 	"net/http"
 )
 
@@ -30,10 +30,7 @@ type Hunt struct {
 	Target   User `gorm:"foreignKey:TargetId;references:StilId"`
 }
 
-//go:embed views/*
-var views embed.FS
-var t = template.Must(template.ParseFS(views, "views/*"))
-
+// go:embed components/*
 func main() {
 	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
@@ -47,10 +44,10 @@ func main() {
 
 	// Routes
 	router := http.NewServeMux()
-	router.HandleFunc("GET /{$}", index)
-	router.HandleFunc("GET /admin", admin)
-	router.HandleFunc("GET /sign-up", signup)
-	router.HandleFunc("GET /leaderboard", leaderboard)
+	router.Handle("/{$}", templ.Handler(components.Index("test")))
+	router.Handle("/admin", templ.Handler(components.Admin()))
+	router.Handle("/sign-up", templ.Handler(components.Signup()))
+	router.Handle("/leaderboard", templ.Handler(components.Leaderboard()))
 
 	server := &http.Server{
 		Addr:    ":8080",
@@ -59,30 +56,4 @@ func main() {
 
 	fmt.Println("Server is running at localhost:8080")
 	_ = server.ListenAndServe()
-}
-
-func index(w http.ResponseWriter, r *http.Request) {
-	if err := t.ExecuteTemplate(w, "index.html", nil); err != nil {
-		http.Error(w, "Something went wrong", http.StatusInternalServerError)
-	}
-	if 0 == 1 {
-		if err := t.ExecuteTemplate(w, "userpage.html", nil); err != nil {
-			http.Error(w, "Something went wrong", http.StatusInternalServerError)
-		}
-	}
-}
-func admin(w http.ResponseWriter, r *http.Request) {
-	if err := t.ExecuteTemplate(w, "admin.html", nil); err != nil {
-		http.Error(w, "Something went wrong", http.StatusInternalServerError)
-	}
-}
-func signup(w http.ResponseWriter, r *http.Request) {
-	if err := t.ExecuteTemplate(w, "signup.html", nil); err != nil {
-		http.Error(w, "Something went wrong", http.StatusInternalServerError)
-	}
-}
-func leaderboard(w http.ResponseWriter, r *http.Request) {
-	if err := t.ExecuteTemplate(w, "leaderboard.html", nil); err != nil {
-		http.Error(w, "Something went wrong", http.StatusInternalServerError)
-	}
 }
