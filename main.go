@@ -48,26 +48,25 @@ func (s *Server) SignUpHandler(w http.ResponseWriter, r *http.Request) {
 	var name string
 	var stilId string
 	var createdNewAccount bool
-	if r.Method == http.MethodPost {
-		var data signUpData
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			http.Error(w, "Bad request", http.StatusBadRequest)
-			return
-		}
-		// FIXME: This can error, plz fix (try Create().Error to see if error)
-		s.Database.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
-		name = data.Name
-		stilId = data.StilId
-		createdNewAccount = true
-
-	} else {
-		var user User
-		s.Database.Last(&user)
-		name = user.Name
-		stilId = user.StilId
+	var data signUpData
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
 	}
+	// FIXME: This can error, plz fix (try Create().Error to see if error)
+	s.Database.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
+	name = data.Name
+	stilId = data.StilId
+	createdNewAccount = true
+}
+
+func (s *Server) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
+	var user User
+	s.Database.Last(&user)
+	name := user.Name
+	stilId := user.StilId
 	// FIXME: This can also error, fix error handling here
-	components.Signup(name, stilId, createdNewAccount).Render(r.Context(), w)
+	components.Signup(name, stilId, false).Render(r.Context(), w)
 }
 
 func (s *Server) AdminHandler(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +95,8 @@ func main() {
 	router := http.NewServeMux()
 	router.HandleFunc("/{$}", server.IndexHandler)
 	router.HandleFunc("/admin", server.AdminHandler)
-	router.HandleFunc("/sign-up", server.SignUpHandler)
+	router.HandleFunc("GET /sign-up", server.ShowUserHandler)
+	router.HandleFunc("POST /sign-up", server.SignUpHandler)
 	router.HandleFunc("/leaderboard", server.LeaderboardHandler)
 
 	WebServer := &http.Server{
