@@ -13,10 +13,10 @@ var t = template.Must(template.ParseFS(views, "views/*"))
 
 func main() {
 	router := http.NewServeMux()
-	router.HandleFunc("/index", index)
-	router.HandleFunc("/admin", admin)
-	router.HandleFunc("/sign-up", signup)
-	router.HandleFunc("/leaderboard", leaderboard)
+	router.HandleFunc("GET /{$}", index)
+	router.HandleFunc("GET /admin", admin)
+	router.HandleFunc("GET /sign-up", signup)
+	router.HandleFunc("GET /leaderboard", leaderboard)
 
 	server := &http.Server{
 		Addr:    ":8080",
