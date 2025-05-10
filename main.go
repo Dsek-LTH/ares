@@ -30,8 +30,49 @@ type Hunt struct {
 	Target   User `gorm:"foreignKey:TargetId;references:StilId"`
 }
 
-func signUpHandler(w http.ResponseWriter, r *http.Request) {
-	components.Index("aaa").Render(r.Context(), w)
+type indexHandler struct {
+	Username string
+}
+
+type signUpHandler struct {
+}
+
+type leaderboardHandler struct {
+}
+
+type adminHandler struct {
+}
+
+func newIndexHandler() indexHandler {
+	return indexHandler{"<Username goes here>"}
+}
+
+func newSignUpHandler() signUpHandler {
+	return signUpHandler{}
+}
+
+func newLeaderboardHandler() signUpHandler {
+	return signUpHandler{}
+}
+
+func newAdminHandler() signUpHandler {
+	return signUpHandler{}
+}
+
+func (ih indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	components.Index(ih.Username).Render(r.Context(), w)
+}
+
+func (sh signUpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	components.Signup().Render(r.Context(), w)
+}
+
+func (ah adminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	components.Admin().Render(r.Context(), w)
+}
+
+func (lh leaderboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	components.Leaderboard().Render(r.Context(), w)
 }
 
 func main() {
@@ -41,16 +82,16 @@ func main() {
 	}
 
 	// Migrate the schema
-	_ = db.AutoMigrate(&User{})
-	_ = db.AutoMigrate(&Admin{})
-	_ = db.AutoMigrate(&Hunt{})
+	db.AutoMigrate(&User{})
+	db.AutoMigrate(&Admin{})
+	db.AutoMigrate(&Hunt{})
 
 	// Routes
 	router := http.NewServeMux()
-	router.Handle("/{$}", signUpHandler)
-	router.Handle("/admin", templ.Handler(components.Admin()))
-	router.Handle("/sign-up", templ.Handler(components.Signup()))
-	router.Handle("/leaderboard", templ.Handler(components.Leaderboard()))
+	router.Handle("/{$}", newIndexHandler())
+	router.Handle("/admin", newAdminHandler())
+	router.Handle("/sign-up", newSignUpHandler())
+	router.Handle("/leaderboard", newLeaderboardHandler())
 
 	server := &http.Server{
 		Addr:    ":8080",
