@@ -11,8 +11,8 @@ templ Home(name string) {
 	<a href="/logout">Log out</a>
 }
 
-templ Admin() {
-	<h1>Admin</h1>
+templ Admin(name string) {
+	<h1>Admin { name } has entered the chat</h1>
 }
 
 templ Signup(name string, stilId string, createdNewAccount bool) {

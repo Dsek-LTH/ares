@@ -53,17 +53,21 @@ type Handler struct {
 	Database *gorm.DB
 }
 
+type contextKey string
+
+const userKey = contextKey("user")
+
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, _ := sessionStore.Get(r, "auth-session")
-		_, ok := session.Values["username"]
+		username, ok := session.Values["username"]
 
 		if !ok {
 			http.Redirect(w, r, "/login", http.StatusFound)
-			return
+		} else {
+			ctx := context.WithValue(r.Context(), userKey, username)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		}
-
-		next.ServeHTTP(w, r)
 	})
 }
 
@@ -99,7 +103,8 @@ func (s *Handler) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) AdminHandler(w http.ResponseWriter, r *http.Request) {
-	components.Admin().Render(r.Context(), w)
+	username := r.Context().Value(userKey).(string)
+	components.Admin(username).Render(r.Context(), w)
 }
 
 func (s *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
@@ -212,8 +217,8 @@ func main() {
 	router := http.NewServeMux()
 	router.HandleFunc("/{$}", handler.IndexHandler)
 	router.Handle("/admin", authMiddleware(http.HandlerFunc(handler.AdminHandler)))
-	router.HandleFunc("/sign-up", handler.SignUpHandler)
-	router.HandleFunc("/leaderboard", handler.LeaderboardHandler)
+	router.Handle("/sign-up", authMiddleware(http.HandlerFunc(handler.SignUpHandler)))
+	router.Handle("/leaderboard", authMiddleware(http.HandlerFunc(handler.LeaderboardHandler)))
 
 	router.HandleFunc("/login", handler.LoginHandler)
 	router.HandleFunc("/logout", handler.LogoutHandler)
