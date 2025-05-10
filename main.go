@@ -36,32 +36,18 @@ type signUpData struct {
 	StilId string `json:"stil-id"`
 }
 
-type indexHandler struct {
-	db       *gorm.DB
-	username string
+type Server struct {
+	Database *gorm.DB
 }
 
-type signUpHandler struct {
-	db                *gorm.DB
-	createdNewAccount bool
-	name              string
-	stilId            string
+func (s *Server) IndexHandler(w http.ResponseWriter, r *http.Request) {
+	components.Index("aaa").Render(r.Context(), w)
 }
 
-type leaderboardHandler struct {
-	db *gorm.DB
-}
-
-type adminHandler struct {
-	db *gorm.DB
-}
-
-func (ih indexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	ih.username = "aaa"
-	components.Index(ih.username).Render(r.Context(), w)
-}
-
-func (sh signUpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) SignUpHandler(w http.ResponseWriter, r *http.Request) {
+	var name string
+	var stilId string
+	var createdNewAccount bool
 	if r.Method == http.MethodPost {
 		var data signUpData
 		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
@@ -69,26 +55,26 @@ func (sh signUpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// FIXME: This can error, plz fix (try Create().Error to see if error)
-		sh.db.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
-		sh.name = data.Name
-		sh.stilId = data.StilId
-		sh.createdNewAccount = true
+		s.Database.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
+		name = data.Name
+		stilId = data.StilId
+		createdNewAccount = true
 
 	} else {
 		var user User
-		sh.db.Last(&user)
-		sh.name = user.Name
-		sh.stilId = user.StilId
+		s.Database.Last(&user)
+		name = user.Name
+		stilId = user.StilId
 	}
 	// FIXME: This can also error, fix error handling here
-	components.Signup(sh.name, sh.stilId, sh.createdNewAccount).Render(r.Context(), w)
+	components.Signup(name, stilId, createdNewAccount).Render(r.Context(), w)
 }
 
-func (ah adminHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) AdminHandler(w http.ResponseWriter, r *http.Request) {
 	components.Admin().Render(r.Context(), w)
 }
 
-func (lh leaderboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Server) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	components.Leaderboard().Render(r.Context(), w)
 }
 
@@ -98,6 +84,9 @@ func main() {
 		panic("failed to connect database")
 	}
 
+	server := &Server{
+		Database: db,
+	}
 	// Migrate the schema
 	db.AutoMigrate(&User{})
 	db.AutoMigrate(&Admin{})
@@ -105,16 +94,16 @@ func main() {
 
 	// Routes
 	router := http.NewServeMux()
-	router.Handle("/{$}", indexHandler{db: db})
-	router.Handle("/admin", adminHandler{db})
-	router.Handle("/sign-up", signUpHandler{db: db})
-	router.Handle("/leaderboard", leaderboardHandler{db})
+	router.HandleFunc("/{$}", server.IndexHandler)
+	router.HandleFunc("/admin", server.AdminHandler)
+	router.HandleFunc("/sign-up", server.SignUpHandler)
+	router.HandleFunc("/leaderboard", server.LeaderboardHandler)
 
-	server := &http.Server{
+	WebServer := &http.Server{
 		Addr:    ":8080",
 		Handler: router,
 	}
 
 	fmt.Println("Server is running at localhost:8080")
-	_ = server.ListenAndServe()
+	_ = WebServer.ListenAndServe()
 }
