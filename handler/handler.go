@@ -78,12 +78,12 @@ func (h *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	/// get stats for all alive hunters:
 	// SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL AND hunter_id IN (SELECT DISTINCT target_id FROM hunts WHERE killed_at IS NULL) GROUP BY hunter_id;
 
-	var result []db.User
+	var userList []db.User
 	// s.Database.Raw("SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL AND hunter_id IN (SELECT DISTINCT target_id FROM hunts WHERE killed_at IS NULL) GROUP BY hunter_id;").Scan(&result)
-	h.Database.Debug().Raw("SELECT * from users join hunts on users.stil_id = hunts.target_id WHERE killed_at IS NULL;").Scan(&result)
-	for _, stat := range result {
+	h.Database.Raw("SELECT * from users join hunts on users.stil_id = hunts.target_id WHERE killed_at IS NULL;").Scan(&userList)
+	for _, stat := range userList {
 		println("id: " + stat.StilId + ", name: " + stat.Name)
 
 	}
-	components.Leaderboard().Render(r.Context(), w)
+	components.Leaderboard(userList).Render(r.Context(), w)
 }
