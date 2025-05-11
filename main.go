@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	// "strconv"
+	"strings"
 
 	"github.com/Dsek-LTH/ares/components"
 	"github.com/Dsek-LTH/ares/db"
@@ -23,6 +23,9 @@ var (
 	sessionStore *sessions.CookieStore
 	verifier     *oidc.IDTokenVerifier
 	oauth2Config *oauth2.Config
+	issuer       string
+	clientID     string
+	clientSecret string
 )
 
 type Handler struct {
@@ -37,9 +40,38 @@ type contextKey string
 
 const userKey = contextKey("user")
 
+// TODO: authMiddleware with options that either redirects to login page, or shows different page without redirect
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, _ := sessionStore.Get(r, "auth-session")
+
+		// rawIDToken, idOk := session.Values["id_token"].(string)
+		accessToken, accOk := session.Values["access_token"].(string)
+
+		if !accOk {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+
+		// _, err := verifier.Verify(r.Context(), rawIDToken)
+		// if err != nil {
+		// 	// Expired or invalid token
+		// 	session.Options.MaxAge = -1
+		// 	session.Save(r, w)
+		// 	http.Redirect(w, r, "/login", http.StatusFound)
+		// 	return
+		// }
+
+		// Overkill?
+		active, err := introspectToken(accessToken)
+		if err != nil || !active {
+			// Invalid or expired token — force re-login
+			session.Options.MaxAge = -1 // clear session
+			session.Save(r, w)
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+
 		username, ok := session.Values["username"]
 
 		if !ok {
@@ -51,10 +83,33 @@ func authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func introspectToken(accessToken string) (bool, error) {
+	url := strings.TrimSuffix(issuer, "/") + "/protocol/openid-connect/token/introspect"
+	req, _ := http.NewRequest("POST",
+		url,
+		strings.NewReader("token="+accessToken))
+
+	req.SetBasicAuth(clientID, clientSecret)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Active bool `json:"active"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+
+	return result.Active, err
+}
+
 func (s *Handler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := sessionStore.Get(r, "auth-session")
 	username, ok := session.Values["username"].(string)
-	log.Println(session.Values)
+
 	if ok {
 		components.Home(username).Render(r.Context(), w)
 	} else {
@@ -110,6 +165,7 @@ func (s *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) LoginHandler(w http.ResponseWriter, r *http.Request) {
+	// FIXME: some-random-state should probably be changed...
 	http.Redirect(w, r, oauth2Config.AuthCodeURL("some-random-state"), http.StatusFound)
 }
 
@@ -149,7 +205,10 @@ func (s *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract claims
-	var claims map[string]any
+	var claims struct {
+		PreferredUsername string `json:"preferred_username"`
+		Exp               int64  `json:"exp"`
+	}
 	if err := idToken.Claims(&claims); err != nil {
 		http.Error(w, "Failed to parse claims", http.StatusInternalServerError)
 		return
@@ -157,11 +216,16 @@ func (s *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Save to session
 	session, _ := sessionStore.Get(r, "auth-session")
-	log.Println(claims["preferred_username"])
-	session.Values["username"] = claims["preferred_username"]
+	// Without an external service like Redis, only id_token or access_token may be saved.
+	// For complexity's sake, only access_token is saved to verify the session using the introspect endpoint.
+	// session.Values["id_token"] = rawIDToken
+	session.Values["username"] = claims.PreferredUsername
+	session.Values["expires_at"] = claims.Exp
+	session.Values["access_token"] = oauth2Token.AccessToken
 	err = session.Save(r, w)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Session store error: %s", err.Error()), http.StatusInternalServerError)
+		return
 	}
 
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -173,12 +237,19 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
-	clientID := os.Getenv("CLIENT_ID")
-	clientSecret := os.Getenv("CLIENT_SECRET")
+	clientID = os.Getenv("CLIENT_ID")
+	clientSecret = os.Getenv("CLIENT_SECRET")
 	redirectURL := os.Getenv("REDIRECT_URL")
-	issuer := os.Getenv("ISSUER")
+	issuer = os.Getenv("ISSUER")
 
 	sessionStore = sessions.NewCookieStore([]byte(os.Getenv("SESSION_KEY")))
+	sessionStore.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   3600,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
 
 	ctx := context.Background()
 
