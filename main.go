@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,6 +10,7 @@ import (
 	// "strconv"
 
 	"github.com/Dsek-LTH/ares/components"
+	"github.com/Dsek-LTH/ares/db"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
@@ -25,31 +25,6 @@ var (
 	oauth2Config *oauth2.Config
 )
 
-type User struct {
-	StilId   string `gorm:"primaryKey"`
-	ImageUrl string `gorm:"not null"`
-	Name     string `gorm:"not null"`
-}
-
-type Admin struct {
-	UserId string `gorm:"primaryKey"`
-	User   User   `gorm:"foreignKey:UserId;references:StilId"`
-}
-
-type Hunt struct {
-	HunterId string `gorm:"primaryKey"`
-	TargetId string `gorm:"primaryKey"`
-	VideoUrl *string
-	KilledAt sql.NullTime
-	Hunter   User `gorm:"foreignKey:HunterId;references:StilId"`
-	Target   User `gorm:"foreignKey:TargetId;references:StilId"`
-}
-
-type signUpData struct {
-	Name   string `json:"name"`
-	StilId string `json:"stil-id"`
-}
-
 type Handler struct {
 	Database *gorm.DB
 }
@@ -58,18 +33,21 @@ type DbHunterStats struct {
 	UserId string
 	Count  int
 }
+type contextKey string
+
+const userKey = contextKey("user")
 
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, _ := sessionStore.Get(r, "auth-session")
-		_, ok := session.Values["username"]
+		username, ok := session.Values["username"]
 
 		if !ok {
 			http.Redirect(w, r, "/login", http.StatusFound)
-			return
+		} else {
+			ctx := context.WithValue(r.Context(), userKey, username)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		}
-
-		next.ServeHTTP(w, r)
 	})
 }
 
@@ -85,18 +63,18 @@ func (s *Handler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) SignUpHandler(w http.ResponseWriter, r *http.Request) {
-	var data signUpData
+	var data db.SignUpData
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
 	// FIXME: This can error, plz fix (try Create().Error to see if error)
-	s.Database.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
+	s.Database.Create(db.User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
 	components.Signup(data.Name, data.StilId, true).Render(r.Context(), w)
 }
 
 func (s *Handler) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
-	var user User
+	var user db.User
 	s.Database.Last(&user)
 	name := user.Name
 	stilId := user.StilId
@@ -105,7 +83,8 @@ func (s *Handler) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) AdminHandler(w http.ResponseWriter, r *http.Request) {
-	components.Admin().Render(r.Context(), w)
+	username := r.Context().Value(userKey).(string)
+	components.Admin(username).Render(r.Context(), w)
 }
 
 func (s *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +99,7 @@ func (s *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	/// get stats for all alive hunters:
 	// SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL AND hunter_id IN (SELECT DISTINCT target_id FROM hunts WHERE killed_at IS NULL) GROUP BY hunter_id;
 
-	var result []User
+	var result []db.User
 	// s.Database.Raw("SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL AND hunter_id IN (SELECT DISTINCT target_id FROM hunts WHERE killed_at IS NULL) GROUP BY hunter_id;").Scan(&result)
 	s.Database.Debug().Raw("SELECT * from users join hunts on users.stil_id = hunts.target_id WHERE killed_at IS NULL;").Scan(&result)
 	for _, stat := range result {
@@ -219,25 +198,25 @@ func main() {
 		Scopes:       []string{oidc.ScopeOpenID, "profile"},
 	}
 
-	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	db_con, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect database")
 	}
 
 	// Migrate the schema
-	db.AutoMigrate(&User{})
-	db.AutoMigrate(&Admin{})
-	db.AutoMigrate(&Hunt{})
+	db_con.AutoMigrate(&db.User{})
+	db_con.AutoMigrate(&db.Admin{})
+	db_con.AutoMigrate(&db.Hunt{})
 
 	handler := &Handler{
-		Database: db,
+		Database: db_con,
 	}
 
 	router := http.NewServeMux()
 	router.HandleFunc("/{$}", handler.IndexHandler)
 	router.Handle("/admin", authMiddleware(http.HandlerFunc(handler.AdminHandler)))
-	router.HandleFunc("/sign-up", handler.SignUpHandler)
-	router.HandleFunc("/leaderboard", handler.LeaderboardHandler)
+	router.Handle("/sign-up", authMiddleware(http.HandlerFunc(handler.SignUpHandler)))
+	router.Handle("/leaderboard", authMiddleware(http.HandlerFunc(handler.LeaderboardHandler)))
 
 	router.HandleFunc("/login", handler.LoginHandler)
 	router.HandleFunc("/logout", handler.LogoutHandler)
