@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	// "strconv"
 
 	"github.com/Dsek-LTH/ares/components"
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -53,6 +54,11 @@ type Handler struct {
 	Database *gorm.DB
 }
 
+type DbHunterStats struct {
+	UserId string
+	Count  int
+}
+
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, _ := sessionStore.Get(r, "auth-session")
@@ -79,9 +85,6 @@ func (s *Handler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) SignUpHandler(w http.ResponseWriter, r *http.Request) {
-	var name string
-	var stilId string
-	var createdNewAccount bool
 	var data signUpData
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
@@ -89,12 +92,10 @@ func (s *Handler) SignUpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// FIXME: This can error, plz fix (try Create().Error to see if error)
 	s.Database.Create(User{Name: data.Name, ImageUrl: "/" + data.StilId, StilId: data.StilId})
-	name = data.Name
-	stilId = data.StilId
-	createdNewAccount = true
+	components.Signup(data.Name, data.StilId, true).Render(r.Context(), w)
 }
 
-func (s *Server) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Handler) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
 	var user User
 	s.Database.Last(&user)
 	name := user.Name
@@ -108,6 +109,24 @@ func (s *Handler) AdminHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
+	// alive := s.Database.
+
+	/// get all alive people:
+	// SELECT * from users join hunts on users.stil_id = hunts.target_id WHERE killed_at IS NULL;
+
+	/// get stats for all hunters:
+	// SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL GROUP BY hunter_id;
+
+	/// get stats for all alive hunters:
+	// SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL AND hunter_id IN (SELECT DISTINCT target_id FROM hunts WHERE killed_at IS NULL) GROUP BY hunter_id;
+
+	var result []User
+	// s.Database.Raw("SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL AND hunter_id IN (SELECT DISTINCT target_id FROM hunts WHERE killed_at IS NULL) GROUP BY hunter_id;").Scan(&result)
+	s.Database.Debug().Raw("SELECT * from users join hunts on users.stil_id = hunts.target_id WHERE killed_at IS NULL;").Scan(&result)
+	for _, stat := range result {
+		println("id: " + stat.StilId + ", name: " + stat.Name)
+
+	}
 	components.Leaderboard().Render(r.Context(), w)
 }
 
@@ -151,7 +170,7 @@ func (s *Handler) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract claims
-	var claims map[string]interface{}
+	var claims map[string]any
 	if err := idToken.Claims(&claims); err != nil {
 		http.Error(w, "Failed to parse claims", http.StatusInternalServerError)
 		return
