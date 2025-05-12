@@ -1,0 +1,25 @@
+{
+  "name": "ares",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "deno run --allow-all npm:@tailwindcss/cli -i input.css -o assets/style.min.css --minify",
+    "watch": "deno run --allow-all npm:@tailwindcss/cli -i input.css -o assets/style.min.css --minify --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dsek-LTH/ares.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Dsek-LTH/ares/issues"
+  },
+  "homepage": "https://github.com/Dsek-LTH/ares#readme",
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.16",
+    "daisyui": "^5.0.35",
+    "tailwindcss": "^4.1.6"
+  }
+}

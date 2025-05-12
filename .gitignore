@@ -1,2 +1,4 @@
 *_templ*
 .env
+node_modules
+assets/style.min.css
