@@ -65,9 +65,7 @@ func main() {
 	}
 
 	// Migrate the schema
-	db_con.AutoMigrate(&db.User{})
-	db_con.AutoMigrate(&db.Admin{})
-	db_con.AutoMigrate(&db.Hunt{})
+	db_con.AutoMigrate(&db.User{}, &db.Admin{}, &db.Hunt{})
 
 	h := &handler.Handler{
 		Database:     db_con,
