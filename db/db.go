@@ -8,11 +8,6 @@ type User struct {
 	Name     string `gorm:"not null"`
 }
 
-type Admin struct {
-	UserId string `gorm:"primaryKey"`
-	User   User   `gorm:"foreignKey:UserId;references:StilId"`
-}
-
 type Hunt struct {
 	HunterId string `gorm:"primaryKey"`
 	TargetId string `gorm:"primaryKey"`
