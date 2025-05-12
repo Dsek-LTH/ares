@@ -1,0 +1,38 @@
+package layout
+
+templ Base(username any, children ...templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Ares</title>
+			<!-- tailwind css -->
+			<link href="/assets/style.min.css" rel="stylesheet"/>
+			// TODO: switch to locally hosted htmx version
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+		</head>
+		<body>
+			<div class="navbar bg-base-100 shadow-sm">
+				<div class="flex-1">
+					<a class="btn btn-ghost text-xl" href="/">Ares</a>
+				</div>
+				<div class="flex-none">
+					<ul class="menu menu-horizontal px-1">
+						if username != nil {
+							<li><a href="/admin">Admin</a></li>
+							<li><a href="/leaderboard">Leaderboard</a></li>
+							<li><a href="/sign-up">Sign Up</a></li>
+							<li><a href="/logout"><b>Log out</b></a></li>
+						} else {
+							<li><a href="/login">Log in</a></li>
+						}
+					</ul>
+				</div>
+			</div>
+			for _, child := range children {
+				@child
+			}
+		</body>
+	</html>
+}

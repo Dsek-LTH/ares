@@ -1,8 +1,6 @@
 package components
 
-import (
-	"github.com/Dsek-LTH/ares/db"
-)
+import "github.com/Dsek-LTH/ares/db"
 
 templ Index() {
 	<h1>Welcome to Ares!</h1>
@@ -10,12 +8,9 @@ templ Index() {
 }
 
 templ Home(name string) {
-	<h1>Hello, { name }</h1>
-	<a href="/admin">Admin Page</a>
-	<a href="/sign-up">Sign Up</a>
-	<a href="/leaderboard">Leaderboard</a>
-	<br/>
-	<a href="/logout">Log out</a>
+	<article class="prose">
+		<h1 class="text-xl">Hello, { name }</h1>
+	</article>
 }
 
 templ Admin(name string) {
@@ -23,7 +18,9 @@ templ Admin(name string) {
 }
 
 templ Signup(name string, stilId string, createdNewAccount bool) {
-	<h1>Sign up</h1>
+	<br/>
+	<h1 class="text-xl">Sign up</h1>
+	<br/>
 	<div>
 		<p>Name: { name } </p>
 		<p>Stil-id: { stilId } </p>
@@ -34,15 +31,11 @@ templ Signup(name string, stilId string, createdNewAccount bool) {
 }
 
 templ Leaderboard(leaderBoardUsers []db.User) {
-	<h1>Leaderboard</h1>
-
-	<br>
-	<br>
-
+	<br/>
 	<h1>Alive Players:</h1>
 	<ul>
 		for _, user := range leaderBoardUsers {
-			<li>StilId: {user.StilId}, Namn: {user.Name}</li>
+			<li>StilId: { user.StilId }, Namn: { user.Name }</li>
 		}
 	</ul>
 }

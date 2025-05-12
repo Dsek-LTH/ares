@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Dsek-LTH/ares/components"
+	"github.com/Dsek-LTH/ares/components/layout"
 	"github.com/Dsek-LTH/ares/db"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/sessions"
@@ -34,10 +35,10 @@ func (h *Handler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.Context().Value(UserKey)
 
 	if username == nil {
-		components.Index().Render(r.Context(), w)
+		layout.Base(nil, components.Index()).Render(r.Context(), w)
 	} else {
 		user := username.(string)
-		components.Home(user).Render(r.Context(), w)
+		layout.Base(user, components.Home(user)).Render(r.Context(), w)
 	}
 }
 
@@ -53,20 +54,22 @@ func (h *Handler) SignUpHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ShowUserHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.Context().Value(UserKey).(string)
 	var user db.User
 	h.Database.Last(&user)
 	name := user.Name
 	stilId := user.StilId
 	// FIXME: This can also error, fix error handling here
-	components.Signup(name, stilId, false).Render(r.Context(), w)
+	layout.Base(username, components.Signup(name, stilId, false)).Render(r.Context(), w)
 }
 
 func (h *Handler) AdminHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.Context().Value(UserKey).(string)
-	components.Admin(username).Render(r.Context(), w)
+	layout.Base(username, components.Admin(username)).Render(r.Context(), w)
 }
 
 func (h *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.Context().Value(UserKey).(string)
 	// alive := s.Database.
 
 	/// get all alive people:
@@ -85,5 +88,5 @@ func (h *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 		println("id: " + stat.StilId + ", name: " + stat.Name)
 
 	}
-	components.Leaderboard(userList).Render(r.Context(), w)
+	layout.Base(username, components.Leaderboard(userList)).Render(r.Context(), w)
 }

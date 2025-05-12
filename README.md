@@ -4,16 +4,20 @@
 
 ### Dev
 
-Install Deno packages
+Install `go` and `deno`. Then run
 
-`deno i`
-
-Install templ
-
-`go install github.com/a-h/templ/cmd/templ@latest`
+`make install`
 
 ### Keycloak
 
 Must turn on `Client authentication` and set the `Client secret` env value
 found under the Credential tab in Keycloak to allow ares to do introspection
 checks to keycloak, verifying the `accessToken` validity.
+
+## Run
+
+### Dev
+
+Setup a live reload environment using
+
+`make live`
