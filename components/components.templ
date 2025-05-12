@@ -1,6 +1,8 @@
 package components
 
-import "github.com/Dsek-LTH/ares/db"
+import (
+	// "github.com/Dsek-LTH/ares/db"
+)
 
 templ Index() {
 	<h1>Welcome to Ares!</h1>
@@ -30,12 +32,21 @@ templ Signup(name string, stilId string, createdNewAccount bool) {
 	</div>
 }
 
-templ Leaderboard(leaderBoardUsers []db.User) {
+type LeaderBoardData struct {
+	StilId string
+	ImageUrl string
+	Name   string
+	Kills  int
+	IsDead bool
+}
+
+templ Leaderboard(leaderBoardUsers []LeaderBoardData) {
 	<br/>
 	<h1>Alive Players:</h1>
 	<ul>
 		for _, user := range leaderBoardUsers {
-			<li>StilId: { user.StilId }, Namn: { user.Name }</li>
+			<li><b>Namn</b>: { user.Name },   <b>Stil-Id</b>: { user.StilId },   <b>ImageUrl</b>: { user.ImageUrl },   <b>Kills</b>: { user.Kills },   <b>IsDead</b>: { user.IsDead }</li>
+			<li>--</li>
 		}
 	</ul>
 }

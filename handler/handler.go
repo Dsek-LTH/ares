@@ -81,12 +81,30 @@ func (h *Handler) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	/// get stats for all alive hunters:
 	// SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL AND hunter_id IN (SELECT DISTINCT target_id FROM hunts WHERE killed_at IS NULL) GROUP BY hunter_id;
 
-	var userList []db.User
-	// s.Database.Raw("SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL AND hunter_id IN (SELECT DISTINCT target_id FROM hunts WHERE killed_at IS NULL) GROUP BY hunter_id;").Scan(&result)
-	h.Database.Raw("SELECT * from users join hunts on users.stil_id = hunts.target_id WHERE killed_at IS NULL;").Scan(&userList)
-	for _, stat := range userList {
-		println("id: " + stat.StilId + ", name: " + stat.Name)
+	// var userList []db.User
 
-	}
-	layout.Base(username, components.Leaderboard(userList)).Render(r.Context(), w)
+	// s.Database.Raw("SELECT hunter_id, COUNT(killed_at) FROM hunts WHERE killed_at IS NOT NULL AND hunter_id IN (SELECT DISTINCT target_id FROM hunts WHERE killed_at IS NULL) GROUP BY hunter_id;").Scan(&result)
+	// h.Database.Raw("SELECT * from users join hunts on users.stil_id = hunts.target_id WHERE killed_at IS NULL;").Scan(&userList)
+	// for _, stat := range userList {
+	// 	println("id: " + stat.StilId + ", name: " + stat.Name)
+	//
+	// }
+
+	var data []components.LeaderBoardData
+
+	h.Database.Raw(`SELECT
+    u.*,
+    CASE
+        WHEN COUNT(CASE WHEN h.killed_at IS NULL THEN 1 END) > 0 THEN 'false'
+        ELSE 'true'
+    END AS is_dead,
+    COUNT(CASE WHEN h.killed_at IS NOT NULL AND h.hunter_id = u.stil_id THEN 1 END) AS kills
+	FROM
+		users u
+	LEFT JOIN
+		hunts h ON u.stil_id = h.target_id OR u.stil_id = h.hunter_id
+	GROUP BY
+		u.stil_id;`).Scan(&data)
+
+	layout.Base(username, components.Leaderboard(data)).Render(r.Context(), w)
 }
