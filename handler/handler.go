@@ -33,12 +33,19 @@ type Handler struct {
 
 func (h *Handler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	username := r.Context().Value(UserKey)
+	var targetUser db.User
+
+	h.Database.Model(&db.Hunt{}).
+		Select("target.*").
+		Joins("JOIN users AS target ON target.stil_id = hunts.target_id").
+		Where("hunts.hunter_id = ? AND hunts.killed_at IS NULL", username).
+		Scan(&targetUser)
 
 	if username == nil {
 		layout.Base(nil, components.Index()).Render(r.Context(), w)
 	} else {
 		user := username.(string)
-		layout.Base(user, components.Home(user)).Render(r.Context(), w)
+		layout.Base(user, components.Home(user, targetUser)).Render(r.Context(), w)
 	}
 }
 
